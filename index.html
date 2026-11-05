@@ -126,7 +126,7 @@ var PUERTAS = [
       ico.innerHTML = e.v === "probando" ? '<span class="giro"></span>' : (e.v === "ok" ? "✓" : "✕");
       var nom = document.createElement("span"); nom.className = "nom"; nom.textContent = p.nombre;
       var est = document.createElement("span"); est.className = "est";
-      est.textContent = e.v === "probando" ? "Probando…" : e.v === "ok" ? "Disponible" : (e.nota || "No abre desde aquí");
+      est.textContent = e.v === "probando" ? "Probando…" : e.v === "ok" ? "Disponible" : (e.nota || "No disponible: No se abre desde aquí");
       var ir = document.createElement("button"); ir.type = "button"; ir.className = "ir"; ir.textContent = "Entrar";
       ir.onclick = function () { entrar(i); };
       var txt = document.createElement("span"); txt.className = "txt";
@@ -167,7 +167,7 @@ var PUERTAS = [
     var malo = leer("sgsst_google_malo");
     var saltarGoogle = typeof malo === "number" && malo > Date.now();
     estados = puertas.map(function (p) {
-      return p.id === "google" && saltarGoogle ? { v: "no", nota: "No abrió hace poco en este equipo" } : { v: "probando" };
+      return p.id === "google" && saltarGoogle ? { v: "no", nota: "No disponible: No abrió hace poco en este equipo" } : { v: "probando" };
     });
     pintar();
     puertas.forEach(function (p, i) {

@@ -84,7 +84,10 @@ var PUERTAS = [
   var ESPERA_MS = 3500;              // tiempo máximo para cada prueba
   var REINTENTO_MS = 2 * 60 * 1000;  // si vuelves al mismo link antes de esto, Google no abrió
   var CASTIGO_MS = 12 * 3600 * 1000; // por cuánto tiempo se salta Google en este equipo
+  var params = new URLSearchParams(location.search);
+  var REVISAR = params.has("revisar");     // ?revisar: muestra cómo ve tu equipo cada conexión y no entra sola
   var destino = location.search + location.hash;
+  if (REVISAR) { params.delete("revisar"); destino = (params.toString() ? "?" + params.toString() : "") + location.hash; }
   var puertas = PUERTAS.filter(function (p) { return /^https:\/\//.test(p.url) && p.url.indexOf("PEGA_AQUI") < 0; });
   var estados = [], decidido = false, ronda = 0;
   var $ = function (id) { return document.getElementById(id); };
@@ -94,9 +97,11 @@ var PUERTAS = [
   function borrar(k) { try { localStorage.removeItem(k); } catch (e) {} }
 
   function conTiempo(prom) {
+    var t0 = Date.now();
     return new Promise(function (ok) {
-      var t = setTimeout(function () { ok(false); }, ESPERA_MS);
-      prom.then(function (v) { clearTimeout(t); ok(!!v); }, function () { clearTimeout(t); ok(false); });
+      var t = setTimeout(function () { ok({ ok: false, ms: ESPERA_MS, motivo: "tiempo" }); }, ESPERA_MS);
+      prom.then(function (v) { clearTimeout(t); ok({ ok: !!v, ms: Date.now() - t0, motivo: v ? "" : "respuesta" }); },
+                function () { clearTimeout(t); ok({ ok: false, ms: Date.now() - t0, motivo: "error" }); });
     });
   }
   function probar(p) {
@@ -126,7 +131,10 @@ var PUERTAS = [
       ico.innerHTML = e.v === "probando" ? '<span class="giro"></span>' : (e.v === "ok" ? "✓" : "✕");
       var nom = document.createElement("span"); nom.className = "nom"; nom.textContent = p.nombre;
       var est = document.createElement("span"); est.className = "est";
-      est.textContent = e.v === "probando" ? "Probando…" : e.v === "ok" ? "Disponible" : (e.nota || "No disponible: No se abre desde aquí");
+      var no = e.nota || (e.motivo === "tiempo" ? "No disponible: No respondió en " + (ESPERA_MS / 1000).toString().replace(".", ",") + " s" : "No disponible: No se abre desde aquí");
+      est.textContent = e.v === "probando" ? "Probando…" : e.v === "ok" ? "Disponible" : no;
+      if (REVISAR && e.v !== "probando" && e.ms != null && e.motivo !== "tiempo") est.textContent += " · " + e.ms + " ms";
+      if (REVISAR && e.eleg) est.textContent += " · Entraría por aquí";
       var ir = document.createElement("button"); ir.type = "button"; ir.className = "ir"; ir.textContent = "Entrar";
       ir.onclick = function () { entrar(i); };
       var txt = document.createElement("span"); txt.className = "txt";
@@ -149,6 +157,18 @@ var PUERTAS = [
 
   function decidir() {
     if (decidido) return;
+    if (REVISAR) {
+      if (estados.some(function (e) { return e.v === "probando"; })) return;
+      var elegida = -1;
+      estados.forEach(function (e, j) { if (elegida < 0 && e.v === "ok") elegida = j; });
+      estados.forEach(function (e, j) { e.eleg = j === elegida; });
+      $("caja").className = "box manual";
+      $("tit").textContent = "Revisión de conexiones";
+      $("sub").textContent = elegida >= 0
+        ? "Con el orden actual, desde este equipo entraría por: " + puertas[elegida].nombre + ". Aquí no entra sola: Elige una si quieres entrar."
+        : "Desde este equipo ninguna conexión respondió.";
+      return pintar();
+    }
     for (var i = 0; i < puertas.length; i++) {
       if (estados[i].v === "probando") return;  // primero se espera a las de mayor prioridad
       if (estados[i].v === "ok") return entrar(i);
@@ -162,10 +182,10 @@ var PUERTAS = [
     var mia = ++ronda;
     decidido = false;
     $("caja").className = "box";
-    $("tit").textContent = "Abriendo la plataforma";
-    $("sub").textContent = "Buscando la conexión que funciona desde tu red.";
+    $("tit").textContent = REVISAR ? "Revisando conexiones" : "Abriendo la plataforma";
+    $("sub").textContent = REVISAR ? "Probando cada conexión desde este equipo." : "Buscando la conexión que funciona desde tu red.";
     var malo = leer("sgsst_google_malo");
-    var saltarGoogle = typeof malo === "number" && malo > Date.now();
+    var saltarGoogle = !REVISAR && typeof malo === "number" && malo > Date.now();
     estados = puertas.map(function (p) {
       return p.id === "google" && saltarGoogle ? { v: "no", nota: "No disponible: No abrió hace poco en este equipo" } : { v: "probando" };
     });
@@ -174,7 +194,7 @@ var PUERTAS = [
       if (estados[i].v !== "probando") return;
       probar(p).then(function (ok) {
         if (mia !== ronda) return;
-        estados[i] = { v: ok ? "ok" : "no" };
+        estados[i] = { v: ok.ok ? "ok" : "no", ms: ok.ms, motivo: ok.motivo };
         if (!decidido) pintar();
         decidir();
       });
@@ -195,7 +215,7 @@ var PUERTAS = [
   try { ref = document.referrer ? new URL(document.referrer).hostname : ""; } catch (e) {}
   var iGoogle = -1;
   puertas.forEach(function (p, i) { if (p.id === "google") iGoogle = i; });
-  if (iGoogle >= 0 && /(^|\.)script\.google\.com$|(^|\.)googleusercontent\.com$/.test(ref)) {
+  if (!REVISAR && iGoogle >= 0 && /(^|\.)script\.google\.com$|(^|\.)googleusercontent\.com$/.test(ref)) {
     borrar("sgsst_google_malo");
     estados = puertas.map(function () { return { v: "probando" }; });
     estados[iGoogle] = { v: "ok" };
@@ -204,7 +224,7 @@ var PUERTAS = [
 
   /* Si Google "pasó" la prueba pero vuelves al mismo link en menos de 2 minutos, en este equipo no abrió */
   var ult = leer("sgsst_puerta");
-  if (ult && ult.id === "google" && ult.q === destino && Date.now() - ult.t < REINTENTO_MS) {
+  if (!REVISAR && ult && ult.id === "google" && ult.q === destino && Date.now() - ult.t < REINTENTO_MS) {
     guardar("sgsst_google_malo", Date.now() + CASTIGO_MS);
   }
   empezar();

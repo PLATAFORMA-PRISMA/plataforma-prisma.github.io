@@ -62,9 +62,11 @@ li.no .est{color:var(--rojo)}
  *
  * Es el link fijo que va en los correos. Al abrirlo prueba las
  * conexiones en este orden y entra por la primera que funcione.
+ * Para cambiar el orden, solo se mueven los bloques de la lista.
  * Para agregar o quitar una conexión, solo se edita esta lista.
  ************************************************************/
 var PUERTAS = [
+  { id: "cloudflare", nombre: "Cloudflare", url: "https://plataforma-prisma.indrasgsst.workers.dev" },
   {
     id: "google", nombre: "Google (directo)",
     url: "https://script.google.com/a/*/macros/s/AKfycby_ABtukCGkU2-ydZzcV9YweFsWc7cOyp_WCvZZ7sLJuVDeo7EJwyOvrGe6AcoBNQH0MA/exec",
@@ -74,8 +76,7 @@ var PUERTAS = [
       "https://n-obmrpcifxenpg5arfx5iqrayg6s266bwcp3z55i-0lu-script.googleusercontent.com/favicon.ico"
     ]
   },
-  { id: "cloudflare", nombre: "Cloudflare", url: "https://plataforma-prisma.indrasgsst.workers.dev" },
-  { id: "netlify", nombre: "Netlify", url: "PEGA_AQUI_EL_LINK_DE_NETLIFY" }
+  { id: "netlify", nombre: "Netlify", url: "https://plataforma-prisma.netlify.app" }
 ];
 
 (function () {

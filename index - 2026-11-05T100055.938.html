@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#004154">
+<title>Plataforma SGSST</title>
+<style>
+:root{
+  --azul:#004154; --azul2:#07556a; --fondo:#f5f6f4; --texto:#17343c; --muted:#687a80;
+  --borde:#d7dfdc; --verde:#2d8066; --verdeF:#e6f2ed; --rojo:#a44848; --rojoF:#f6e9e9; --grisF:#eef1f0;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--fondo);color:var(--texto);font-size:14px}
+.wrap{min-height:100vh;display:grid;place-items:center;padding:24px 16px}
+.box{width:100%;max-width:420px;background:#fff;border:1px solid var(--borde);border-radius:18px;padding:32px 28px;box-shadow:0 10px 40px rgba(0,40,50,.09)}
+.marca{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--azul2);margin-bottom:14px}
+h1{margin:0 0 6px;font-size:21px;color:var(--azul)}
+.sub{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 20px}
+ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+li{display:flex;align-items:center;gap:10px;border:1px solid var(--borde);border-radius:12px;padding:10px 12px;min-height:46px}
+li.ok{border-color:#b9d9cc;background:var(--verdeF)}
+li.no{border-color:#e6c9c9;background:var(--rojoF)}
+li.eleg{border-color:var(--verde);box-shadow:0 0 0 2px rgba(45,128,102,.18)}
+.ico{width:18px;height:18px;flex:0 0 18px;display:grid;place-items:center}
+.giro{width:14px;height:14px;border:2px solid #c3cfcc;border-top-color:var(--azul2);border-radius:50%;animation:g .8s linear infinite}
+@keyframes g{to{transform:rotate(360deg)}}
+.txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.nom{font-weight:600}
+.est{font-size:12px;color:var(--muted)}
+li.ok .ico{color:var(--verde);font-weight:700}
+li.no .ico{color:var(--rojo);font-weight:700}
+li.ok .est{color:var(--verde);font-weight:600}
+li.no .est{color:var(--rojo)}
+.ir{display:none;border:1px solid var(--azul);background:#fff;color:var(--azul);border-radius:999px;padding:6px 14px;font:600 12px Inter,Segoe UI,Arial,sans-serif;cursor:pointer}
+.ir:hover{background:var(--azul);color:#fff}
+.manual .ir{display:inline-block}
+.acc{display:none;margin-top:16px}
+.manual .acc{display:block}
+.prim{width:100%;border:0;background:var(--azul);color:#fff;border-radius:999px;padding:11px 16px;font:600 14px Inter,Segoe UI,Arial,sans-serif;cursor:pointer}
+.prim:hover{background:var(--azul2)}
+.pie{margin-top:18px;font-size:11.5px;color:var(--muted);line-height:1.5}
+@media (prefers-reduced-motion:reduce){.giro{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <main class="box" id="caja">
+    <div class="marca">Plataforma SGSST</div>
+    <h1 id="tit">Abriendo la plataforma</h1>
+    <p class="sub" id="sub" aria-live="polite">Buscando la conexión que funciona desde tu red.</p>
+    <ul id="lista"></ul>
+    <div class="acc"><button type="button" class="prim" id="otraVez">Volver a probar</button></div>
+    <p class="pie">Esta página no guarda datos: Solo elige por dónde entrar. Todo sigue en Google Drive.</p>
+    <noscript><p class="sub">Para entrar necesitas tener JavaScript activado en el navegador.</p></noscript>
+  </main>
+</div>
+<script>
+/************************************************************
+ * PUERTA DE ENTRADA · PLATAFORMA SGSST
+ *
+ * Es el link fijo que va en los correos. Al abrirlo prueba las
+ * conexiones en este orden y entra por la primera que funcione.
+ * Para agregar o quitar una conexión, solo se edita esta lista.
+ ************************************************************/
+var PUERTAS = [
+  {
+    id: "google", nombre: "Google (directo)",
+    url: "https://script.google.com/a/*/macros/s/AKfycby_ABtukCGkU2-ydZzcV9YweFsWc7cOyp_WCvZZ7sLJuVDeo7EJwyOvrGe6AcoBNQH0MA/exec",
+    /* Las dos direcciones que el filtro tiene que dejar pasar para que Apps Script abra */
+    pruebas: [
+      "https://script.google.com/favicon.ico",
+      "https://n-obmrpcifxenpg5arfx5iqrayg6s266bwcp3z55i-0lu-script.googleusercontent.com/favicon.ico"
+    ]
+  },
+  { id: "cloudflare", nombre: "Cloudflare", url: "https://plataforma-prisma.indrasgsst.workers.dev" },
+  { id: "netlify", nombre: "Netlify", url: "PEGA_AQUI_EL_LINK_DE_NETLIFY" }
+];
+
+(function () {
+  "use strict";
+  var ESPERA_MS = 3500;              // tiempo máximo para cada prueba
+  var REINTENTO_MS = 2 * 60 * 1000;  // si vuelves al mismo link antes de esto, Google no abrió
+  var CASTIGO_MS = 12 * 3600 * 1000; // por cuánto tiempo se salta Google en este equipo
+  var destino = location.search + location.hash;
+  var puertas = PUERTAS.filter(function (p) { return /^https:\/\//.test(p.url) && p.url.indexOf("PEGA_AQUI") < 0; });
+  var estados = [], decidido = false, ronda = 0;
+  var $ = function (id) { return document.getElementById(id); };
+
+  function leer(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } }
+  function guardar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function borrar(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+  function conTiempo(prom) {
+    return new Promise(function (ok) {
+      var t = setTimeout(function () { ok(false); }, ESPERA_MS);
+      prom.then(function (v) { clearTimeout(t); ok(!!v); }, function () { clearTimeout(t); ok(false); });
+    });
+  }
+  function probar(p) {
+    var marca = "_=" + Date.now();
+    if (p.pruebas) {
+      return conTiempo(Promise.all(p.pruebas.map(function (u) {
+        return fetch(u + (u.indexOf("?") < 0 ? "?" : "&") + marca, { mode: "no-cors", cache: "no-store", credentials: "omit" });
+      })).then(function () { return true; }));
+    }
+    return conTiempo(fetch(p.url.replace(/\/+$/, "") + "/__ping?" + marca, { cache: "no-store", credentials: "omit" })
+      .then(function (r) { return r.ok ? r.text() : ""; })
+      .then(function (t) { return String(t).trim() === "PUENTE-OK"; }));
+  }
+  function urlDe(p) {
+    var base = p.url.replace(/\/+$/, "");
+    return (p.pruebas ? base : base + "/") + destino;
+  }
+
+  function pintar() {
+    $("lista").innerHTML = "";
+    puertas.forEach(function (p, i) {
+      var e = estados[i];
+      var li = document.createElement("li");
+      li.className = e.v === "ok" ? "ok" : e.v === "no" ? "no" : "";
+      if (e.eleg) li.className += " eleg";
+      var ico = document.createElement("span"); ico.className = "ico";
+      ico.innerHTML = e.v === "probando" ? '<span class="giro"></span>' : (e.v === "ok" ? "✓" : "✕");
+      var nom = document.createElement("span"); nom.className = "nom"; nom.textContent = p.nombre;
+      var est = document.createElement("span"); est.className = "est";
+      est.textContent = e.v === "probando" ? "Probando…" : e.v === "ok" ? "Disponible" : (e.nota || "No abre desde aquí");
+      var ir = document.createElement("button"); ir.type = "button"; ir.className = "ir"; ir.textContent = "Entrar";
+      ir.onclick = function () { entrar(i); };
+      var txt = document.createElement("span"); txt.className = "txt";
+      txt.appendChild(nom); txt.appendChild(est);
+      li.appendChild(ico); li.appendChild(txt); li.appendChild(ir);
+      $("lista").appendChild(li);
+    });
+  }
+
+  function entrar(i) {
+    var p = puertas[i];
+    decidido = true;
+    estados.forEach(function (e, j) { e.eleg = j === i; });
+    pintar();
+    $("tit").textContent = "Entrando…";
+    $("sub").textContent = "Por: " + p.nombre + ".";
+    guardar("sgsst_puerta", { id: p.id, q: destino, t: Date.now() });
+    location.replace(urlDe(p));
+  }
+
+  function decidir() {
+    if (decidido) return;
+    for (var i = 0; i < puertas.length; i++) {
+      if (estados[i].v === "probando") return;  // primero se espera a las de mayor prioridad
+      if (estados[i].v === "ok") return entrar(i);
+    }
+    $("caja").className = "box manual";
+    $("tit").textContent = "No se pudo abrir desde esta red";
+    $("sub").textContent = "Ninguna conexión respondió. Prueba con los datos de tu celular o elige una conexión para intentar igual.";
+  }
+
+  function empezar() {
+    var mia = ++ronda;
+    decidido = false;
+    $("caja").className = "box";
+    $("tit").textContent = "Abriendo la plataforma";
+    $("sub").textContent = "Buscando la conexión que funciona desde tu red.";
+    var malo = leer("sgsst_google_malo");
+    var saltarGoogle = typeof malo === "number" && malo > Date.now();
+    estados = puertas.map(function (p) {
+      return p.id === "google" && saltarGoogle ? { v: "no", nota: "No abrió hace poco en este equipo" } : { v: "probando" };
+    });
+    pintar();
+    puertas.forEach(function (p, i) {
+      if (estados[i].v !== "probando") return;
+      probar(p).then(function (ok) {
+        if (mia !== ronda) return;
+        estados[i] = { v: ok ? "ok" : "no" };
+        if (!decidido) pintar();
+        decidir();
+      });
+    });
+    decidir();
+  }
+
+  $("otraVez").onclick = function () { borrar("sgsst_google_malo"); empezar(); };
+
+  if (!puertas.length) {
+    $("tit").textContent = "Falta configurar la puerta";
+    $("sub").textContent = "No hay ninguna conexión configurada en esta página.";
+    return;
+  }
+
+  /* Si vienes desde Google (Apps Script directo), es que esa conexión te funciona */
+  var ref = "";
+  try { ref = document.referrer ? new URL(document.referrer).hostname : ""; } catch (e) {}
+  var iGoogle = -1;
+  puertas.forEach(function (p, i) { if (p.id === "google") iGoogle = i; });
+  if (iGoogle >= 0 && /(^|\.)script\.google\.com$|(^|\.)googleusercontent\.com$/.test(ref)) {
+    borrar("sgsst_google_malo");
+    estados = puertas.map(function () { return { v: "probando" }; });
+    estados[iGoogle] = { v: "ok" };
+    return entrar(iGoogle);
+  }
+
+  /* Si Google "pasó" la prueba pero vuelves al mismo link en menos de 2 minutos, en este equipo no abrió */
+  var ult = leer("sgsst_puerta");
+  if (ult && ult.id === "google" && ult.q === destino && Date.now() - ult.t < REINTENTO_MS) {
+    guardar("sgsst_google_malo", Date.now() + CASTIGO_MS);
+  }
+  empezar();
+})();
+</script>
+</body>
+</html>
